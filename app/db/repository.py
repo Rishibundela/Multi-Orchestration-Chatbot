@@ -1,8 +1,9 @@
 # app/db/repository.py
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import asc, asc, select, delete
 from app.db.models import Chat, Message
+from sqlalchemy import asc
 
 
 # -----------------------------
@@ -49,9 +50,14 @@ class MessageRepository:
         )
         self.db.add(msg)
         await self.db.commit()
+        await self.db.refresh(msg)
+        return msg
+
 
     async def get_messages(self, chat_id: int):
         result = await self.db.execute(
-            select(Message).where(Message.chat_id == chat_id)
+            select(Message)
+            .where(Message.chat_id == chat_id)
+            .order_by(asc(Message.created_at))
         )
         return result.scalars().all()
