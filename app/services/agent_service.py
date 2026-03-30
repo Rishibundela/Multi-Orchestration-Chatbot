@@ -1,28 +1,15 @@
 # app/services/agent_service.py
 
 from typing import List, AsyncGenerator
-from pydantic import BaseModel
-from groq import AsyncGroq
+from langchain_core.messages import BaseMessage
 
 from app.agents.graph import build_graph
 from app.services.rag_service import RAGService
-from app.core.config import settings
 
 
-# -----------------------------
-# Request Schema (Optional)
-# -----------------------------
-class AgentRequest(BaseModel):
-    query: str
-    messages: List[str]
-
-
-# -----------------------------
-# Singleton Agent Service
-# -----------------------------
 class AgentService:
 
-    _instance = None  # Singleton instance
+    _instance = None
 
     def __new__(cls, rag_service: RAGService):
         if cls._instance is None:
@@ -33,77 +20,40 @@ class AgentService:
         if hasattr(self, "_initialized"):
             return
 
-        self.rag_service = rag_service
-
-        # Build graph ONLY ONCE
         self.graph = build_graph(rag_service)
-
-        # Groq client
-        self.llm = AsyncGroq(api_key=settings.GROQ_API_KEY)
-
         self._initialized = True
 
     # -----------------------------
-    # Normal Response
+    # Normal Run
     # -----------------------------
-    async def run(self, query: str, chat_history: List[str]):
+    async def run(self, messages: List[BaseMessage]) -> str:
 
         state = {
-            "query": query,
-            "messages": chat_history,
-            "context": "",
-            "tool_result": "",
-            "decision": "",
-            "response": ""
+            "messages": messages
         }
 
         result = await self.graph.ainvoke(state)
 
-        return result["response"]
+        # last message is the answer
+        return result["messages"][-1].content
 
     # -----------------------------
-    # Streaming Response
+    # Streaming Run
     # -----------------------------
     async def stream(
-        self, query: str, chat_history: List[str]
+        self, messages: List[BaseMessage]
     ) -> AsyncGenerator[str, None]:
 
-        # Step 1: Run graph FIRST (planner + rag + tool)
         state = {
-            "query": query,
-            "messages": chat_history,
-            "context": "",
-            "tool_result": "",
-            "decision": "",
-            "response": ""
+            "messages": messages
         }
 
-        result = await self.graph.ainvoke(state)
+        # LangGraph streaming
+        async for event in self.graph.astream(state):
 
-        # Step 2: Build final prompt
-        prompt = f"""
-User Query:
-{query}
+            # extract tokens/messages
+            if "messages" in event:
+                last_msg = event["messages"][-1]
 
-Context:
-{result.get("context", "")}
-
-Tool Output:
-{result.get("tool_result", "")}
-
-Answer clearly:
-"""
-
-        # Step 3: Stream from Groq
-        stream = await self.llm.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a helpful AI assistant."},
-                {"role": "user", "content": prompt},
-            ],
-            stream=True,
-        )
-
-        async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+                if hasattr(last_msg, "content") and last_msg.content:
+                    yield last_msg.content
