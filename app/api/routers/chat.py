@@ -16,31 +16,27 @@ from app.services.rag_service import RAGService
 router = APIRouter()
 
 
-# -----------------------------
-# Request Schema
-# -----------------------------
 class ChatRequest(BaseModel):
     query: str
 
 
 # -----------------------------
-# Dependency Builder
+# Dependency
 # -----------------------------
 def get_chat_service(db: AsyncSession = Depends(get_db)):
 
-    # DB layer
     message_repo = MessageRepository(db)
     vector_store = VectorStore(db)
-
-    # Services
     rag_service = RAGService(vector_store)
+
+    # singleton handles reuse
     agent_service = AgentService(rag_service)
 
     return ChatService(message_repo, agent_service)
 
 
 # -----------------------------
-# Normal Chat Endpoint
+# Normal Chat
 # -----------------------------
 @router.post("/{chat_id}/query")
 async def chat(
@@ -48,16 +44,18 @@ async def chat(
     request: ChatRequest,
     chat_service: ChatService = Depends(get_chat_service)
 ):
-    response = await chat_service.handle_query(
-        chat_id=chat_id,
-        query=request.query
-    )
-
-    return {"response": response}
+    try:
+        response = await chat_service.handle_query(
+            chat_id=chat_id,
+            query=request.query
+        )
+        return {"response": response}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # -----------------------------
-# Streaming Chat Endpoint
+# Streaming Chat
 # -----------------------------
 @router.post("/{chat_id}/stream")
 async def stream_chat(
@@ -67,10 +65,13 @@ async def stream_chat(
 ):
 
     async def generator():
-        async for chunk in chat_service.stream_query(
-            chat_id=chat_id,
-            query=request.query
-        ):
-            yield chunk
+        try:
+            async for chunk in chat_service.stream_query(
+                chat_id=chat_id,
+                query=request.query
+            ):
+                yield chunk
+        except Exception as e:
+            yield f"Error: {str(e)}"
 
-    return StreamingResponse(generator(), media_type="text/plain")
+    return StreamingResponse(generator(), media_type="text/event-stream")
