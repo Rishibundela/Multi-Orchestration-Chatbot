@@ -1,23 +1,19 @@
 # app/agents/state.py
 
-from typing import TypedDict, List, Optional
+from typing import TypedDict, Annotated, Optional
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 
 class AgentState(TypedDict):
-    # User input
-    query: str
+    messages: Annotated[list[BaseMessage], add_messages]
 
-    # Chat history (STM)
-    messages: List[str]
+    # planner output
+    decision: Optional[str]        # "rag" | "tool" | "direct"
+    reasoning: Optional[str]
 
-    # RAG context
+    # rag
     context: Optional[str]
 
-    # Tool output
-    tool_result: Optional[str]
-
-    # Planner decision
-    decision: Optional[str]
-
-    # Final response
+    # final
     response: Optional[str]

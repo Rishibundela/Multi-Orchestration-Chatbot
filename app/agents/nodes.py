@@ -1,73 +1,85 @@
-# app/agents/nodes.py
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+import json
 
-from app.services.rag_service import RAGService
-from app.tools.tools import tool_executor
+from app.core.config import settings
+from app.tools.tools import get_llm_with_tools
 
 
-# -----------------------------
-# Planner Node
-# -----------------------------
+planner_llm = ChatOpenAI(
+    api_key=settings.GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1",
+    model="llama-3.1-8b-instant",
+    temperature=0
+)
+
+
+PLANNER_PROMPT = """
+You are an intelligent AI planner.
+
+Your job:
+1. Understand user intent
+2. Decide how to solve it
+
+You MUST return JSON:
+
+{
+  "decision": "rag" | "tool" | "direct",
+  "reasoning": "short explanation"
+}
+
+Guidelines:
+- Use "rag" if question requires external knowledge or documents
+- Use "tool" if calculation, API, search, or external action is needed
+- Use "direct" if you can answer directly
+
+Be precise. Do not explain outside JSON.
+"""
+
+
 async def planner_node(state: dict):
 
-    query = state["query"].lower()
+    user_message = state["messages"][-1]
 
-    # VERY SIMPLE LOGIC (upgrade later with LLM)
-    if "calculate" in query or "math" in query:
-        state["decision"] = "tool"
+    response = await planner_llm.ainvoke([
+        SystemMessage(content=PLANNER_PROMPT),
+        user_message
+    ])
 
-    elif "what" in query or "explain" in query:
-        state["decision"] = "rag"
-
-    else:
+    try:
+        parsed = json.loads(response.content)
+        state["decision"] = parsed.get("decision", "direct")
+        state["reasoning"] = parsed.get("reasoning", "")
+    except:
         state["decision"] = "direct"
 
     return state
 
+async def rag_node(state: dict, rag_service):
 
-# -----------------------------
-# RAG Node
-# -----------------------------
-async def rag_node(state: dict, rag_service: RAGService):
+    query = state["messages"][-1].content
+    docs = await rag_service.retrieve(query)
 
-    docs = await rag_service.retrieve(state["query"])
+    context = "\n".join(docs) if docs else ""
+    state["context"] = context
 
-    state["context"] = "\n".join(docs) if docs else ""
-    return state
-
-
-# -----------------------------
-# Tool Node
-# -----------------------------
-async def tool_node(state: dict):
-
-    result = await tool_executor(state["query"])
-    state["tool_result"] = result
+    if context:
+        state["messages"].append(
+            SystemMessage(content=f"Context:\n{context}")
+        )
 
     return state
 
+executor_llm = get_llm_with_tools()
 
-# -----------------------------
-# Reasoning Node (LLM Placeholder)
-# -----------------------------
-async def reasoning_node(state: dict):
 
-    query = state["query"]
-    context = state.get("context", "")
-    tool_result = state.get("tool_result", "")
+async def executor_node(state: dict):
 
-    # Replace with real LLM later
-    response = f"""
-Query: {query}
+    messages = state["messages"]
 
-Context:
-{context}
+    response = await executor_llm.ainvoke(messages)
 
-Tool Result:
-{tool_result}
+    state["messages"].append(response)
+    state["response"] = response.content
 
-Final Answer:
-Processed intelligently.
-"""
-
-    state["response"] = response
     return state
