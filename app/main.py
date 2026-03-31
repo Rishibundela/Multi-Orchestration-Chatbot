@@ -10,21 +10,18 @@ from app.core.config import settings
 # -----------------------------
 # Lifespan (startup/shutdown)
 # -----------------------------
+# app/main.py
+from app.tools.mcp_client import init_mcp_tools
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 🔹 Startup tasks
-    print(f"🚀 Starting {settings.APP_NAME} ({settings.ENV})")
-
-    # Example future use:
-    # - connect Redis
-    # - load models
-    # - init tools
-    # - warm caches
-
+    print(f"🚀 Starting {settings.APP_NAME}")
+    
+    # Initialize MCP tools properly within the app's event loop
+    await init_mcp_tools() 
+    
     yield
-
-    # 🔹 Shutdown tasks
-    print("🛑 Shutting down application...")
+    print("🛑 Shutting down...")
 
 
 # -----------------------------

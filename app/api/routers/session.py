@@ -27,7 +27,7 @@ async def create_session(
     session_service: SessionService = Depends(get_session_service)
 ):
     chat = await session_service.create_session()
-    return {"chat_id": chat.id}
+    return {"chat_id": chat.id, "created_at": chat.created_at.isoformat()}
 
 
 # -----------------------------

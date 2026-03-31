@@ -10,7 +10,11 @@ class Chat(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+    DateTime, 
+    # Use .replace(tzinfo=None) to make it naive
+    default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+)
 
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="chat", cascade="all, delete")
 
@@ -22,7 +26,7 @@ class Message(Base):
     
     role: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
 

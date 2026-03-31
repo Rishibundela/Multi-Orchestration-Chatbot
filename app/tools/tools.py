@@ -4,7 +4,7 @@ from langchain_core.tools import tool, BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_openai import ChatOpenAI
 
-from app.tools.mcp import load_mcp_tools
+from app.tools.mcp_client import mcp_tools
 from app.core.config import settings
 
 
@@ -42,7 +42,7 @@ def get_stock_price(symbol: str) -> dict:
 # -----------------------------
 # MCP Tools
 # -----------------------------
-mcp_tools: list[BaseTool] = load_mcp_tools()
+mcp_tools: list[BaseTool] = mcp_tools
 
 
 # -----------------------------
