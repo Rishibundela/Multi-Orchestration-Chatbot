@@ -1,13 +1,14 @@
 # app/core/database.py
 
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from app.core.config import settings
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = settings.DATABASE_URL
 
 # -----------------------------
 # Engine
@@ -21,10 +22,9 @@ engine = create_async_engine(
 # -----------------------------
 # Session
 # -----------------------------
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
 
 # -----------------------------

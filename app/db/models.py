@@ -1,39 +1,31 @@
-from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from datetime import datetime
+from sqlalchemy import String, Text, ForeignKey, DateTime, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
+from app.db.base import Base
+from datetime import datetime, timezone
 
-Base = declarative_base()
-
-
-# -----------------------------
-# Chat Table
-# -----------------------------
 class Chat(Base):
     __tablename__ = "chats"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
 
-    messages = relationship("Message", back_populates="chat", cascade="all, delete")
+    messages: Mapped[list["Message"]] = relationship("Message", back_populates="chat", cascade="all, delete")
 
-
-# -----------------------------
-# Messages Table
-# -----------------------------
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, ForeignKey("chats.id"), index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    chat_id: Mapped[int] = mapped_column(ForeignKey("chats.id"), index=True)
+    
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
 
-    role = Column(String, nullable=False)
-    content = Column(Text)
+    chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    chat = relationship("Chat", back_populates="messages")
 
 
 # -----------------------------
@@ -42,16 +34,16 @@ class Message(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
-    content = Column(Text)
-    embedding = Column(Vector(1536))
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[Vector] = mapped_column(Vector(1536))
 
-    chat_id = Column(Integer, nullable=True)
-    user_id = Column(String, nullable=True)
+    chat_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=True)
 
-    source = Column(String, nullable=True)
-    metadata_json = Column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=True)
 
 
 # -----------------------------
@@ -60,8 +52,8 @@ class Document(Base):
 class ChatSummary(Base):
     __tablename__ = "chat_summaries"
 
-    id = Column(Integer, primary_key=True)
-    chat_id = Column(Integer, ForeignKey("chats.id"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(Integer, ForeignKey("chats.id"))
 
-    summary = Column(Text)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    summary: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(timezone.utc))
