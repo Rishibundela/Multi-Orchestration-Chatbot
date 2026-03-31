@@ -20,47 +20,47 @@ class ChatService:
     # -----------------------------
     # Helper: Convert DB → Messages
     # -----------------------------
-    def _build_messages(self, db_messages, query: str) -> List[BaseMessage]:
-
+    def _build_messages(self, db_messages) -> List[BaseMessage]:
+    # 🔹 LIMIT TO THE LAST 6 MESSAGES (3 rounds of Q&A)
+    # This prevents the list from growing indefinitely in the Agent's prompt.
+        limited_history = db_messages[-8:] 
+        
         messages: List[BaseMessage] = []
-
-        # Convert last N messages (STM)
-        for m in db_messages[-5:]:
+        for m in limited_history:
             if m.role == "user":
                 messages.append(HumanMessage(content=m.content))
             else:
                 messages.append(AIMessage(content=m.content))
-
-        # Add current user query
-        messages.append(HumanMessage(content=query))
-
+                
         return messages
 
     # -----------------------------
     # Main Chat Flow
     # -----------------------------
-    async def handle_query(self, chat_id: int, query: str) -> str:
+    # app/services/chat_service.py
 
-        # 1. Store user message
+    async def handle_query(self, chat_id: int, query: str) -> str:
+        # 1. Save the new message to DB first
         await self.message_repo.add_message(
-            chat_id=chat_id,
-            role="user",
+            chat_id=chat_id, 
+            role="user", 
             content=query
         )
 
-        # 2. Fetch history from DB (LTM → STM)
+        # 2. Fetch history (THIS NOW INCLUDES THE QUERY ABOVE)
         db_messages = await self.message_repo.get_messages(chat_id)
 
-        # 3. Build LangGraph-compatible messages
-        messages = self._build_messages(db_messages, query)
+        # 3. Convert ONLY what is in the DB to LangChain objects
+        # Note: We don't pass 'query' here anymore!
+        messages = self._build_messages(db_messages)
 
-        # 4. Run agent
+        # 4. Run the agent
         response = await self.agent_service.run(messages)
 
-        # 5. Store assistant response
+        # 5. Save the AI response
         await self.message_repo.add_message(
-            chat_id=chat_id,
-            role="assistant",
+            chat_id=chat_id, 
+            role="assistant", 
             content=response
         )
 
@@ -84,7 +84,7 @@ class ChatService:
         db_messages = await self.message_repo.get_messages(chat_id)
 
         # 3. Build messages
-        messages = self._build_messages(db_messages, query)
+        messages = self._build_messages(db_messages)
 
         # 4. Stream response
         full_response = ""
